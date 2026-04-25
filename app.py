@@ -1,16 +1,23 @@
-import dash
-from dash import html, dcc, Input, Output, State
+import streamlit as st
 import random
 
-app = dash.Dash(__name__)
-server = app.server
+st.set_page_config(page_title="FunLearn Pro", page_icon="🎮")
 
-# ===== GLOBAL STATE (simple demo) =====
-xp = 0
-level = 1
-streak = 0
-score = 0
+st.title("🎮 FunLearn Pro")
 
+# ===== SESSION STATE =====
+if "xp" not in st.session_state:
+    st.session_state.xp = 0
+    st.session_state.level = 1
+    st.session_state.streak = 0
+    st.session_state.score = 0
+
+if "question" not in st.session_state:
+    st.session_state.question = ""
+    st.session_state.answer = None
+    st.session_state.word = None
+
+# ===== FUNCTIONS =====
 def generate_math(diff):
     if diff == "Easy":
         a, b = random.randint(0, 10), random.randint(0, 10)
@@ -30,156 +37,80 @@ def generate_word():
     ]
     return random.choice(words)
 
-# ===== INITIAL =====
-question, answer = generate_math("Easy")
-word = generate_word()
-
-# ===== UI =====
-app.layout = html.Div([
-    html.H1("🎮 FunLearn Pro", style={"textAlign": "center"}),
-
-    html.Div([
-        html.Div(id="level", children="Level: 1", className="card"),
-        html.Div(id="xp", children="XP: 0", className="card"),
-        html.Div(id="streak", children="Streak: 0", className="card"),
-    ], style={"display": "flex", "justifyContent": "space-around"}),
-
-    html.Br(),
-
-    dcc.Dropdown(["Math", "Vocabulary", "Mixed"], "Math", id="mode"),
-    dcc.Dropdown(["Easy", "Medium", "Hard"], "Easy", id="difficulty"),
-
-    html.Div(id="question-box", className="card"),
-
-    dcc.Input(id="user-input", placeholder="Your answer...", type="text"),
-    html.Button("Submit", id="submit"),
-
-    html.Div(id="feedback"),
-    html.Div(id="score-display"),
-
-], style={"width": "50%", "margin": "auto"})
-
-# ===== CALLBACK =====
-@app.callback(
-    Output("question-box", "children"),
-    Output("feedback", "children"),
-    Output("score-display", "children"),
-    Output("level", "children"),
-    Output("xp", "children"),
-    Output("streak", "children"),
-    Input("submit", "n_clicks"),
-    State("user-input", "value"),
-    State("mode", "value"),
-    State("difficulty", "value"),
-)
-def update(n, user_input, mode, difficulty):
-    global xp, level, streak, score, question, answer, word
-
-    if n is None:
-        return f"Question: {question}", "", "", f"Level: {level}", f"XP: {xp}", f"Streak: {streak}"
-
-    feedback = ""
-
-    # ===== CHECK ANSWER =====
+def new_question(mode, difficulty):
     if mode == "Math":
-        if str(user_input) == str(answer):
-            feedback = "✅ Correct!"
-            score += 1
-            streak += 1
-            xp += 10
-        else:
-            feedback = f"❌ Wrong! Answer: {answer}"
-            streak = 0
-
+        q, a = generate_math(difficulty)
+        st.session_state.question = q
+        st.session_state.answer = a
+        st.session_state.word = None
     elif mode == "Vocabulary":
-        if user_input and user_input.lower() == word["answer"]:
-            feedback = "✅ Correct!"
-            score += 1
-            streak += 1
-            xp += 10
-        else:
-            feedback = f"❌ Wrong! Answer: {word['answer']}"
-            streak = 0
-
-    else:  # Mixed
-        if random.random() > 0.5:
-            if str(user_input) == str(answer):
-                feedback = "✅ Correct!"
-                xp += 10
-                streak += 1
-            else:
-                feedback = f"❌ Wrong! {answer}"
-                streak = 0
-        else:
-            if user_input and user_input.lower() == word["answer"]:
-                feedback = "✅ Correct!"
-                xp += 10
-                streak += 1
-            else:
-                feedback = f"❌ Wrong! {word['answer']}"
-                streak = 0
-
-    # ===== LEVEL UP =====
-    if xp >= level * 100:
-        level += 1
-
-    # ===== NEW QUESTION =====
-    if mode == "Math":
-        question, answer = generate_math(difficulty)
-        display = f"{question} = ?"
-    elif mode == "Vocabulary":
-        word = generate_word()
-        display = f"Hint: {word['hint']}"
+        w = generate_word()
+        st.session_state.word = w
+        st.session_state.question = ""
     else:
         if random.random() > 0.5:
-            question, answer = generate_math(difficulty)
-            display = f"{question} = ?"
+            q, a = generate_math(difficulty)
+            st.session_state.question = q
+            st.session_state.answer = a
+            st.session_state.word = None
         else:
-            word = generate_word()
-            display = f"Hint: {word['hint']}"
+            w = generate_word()
+            st.session_state.word = w
+            st.session_state.question = ""
 
-    return (
-        display,
-        feedback,
-        f"Score: {score}",
-        f"Level: {level}",
-        f"XP: {xp}",
-        f"Streak: {streak}",
-    )
+# ===== UI STATS =====
+col1, col2, col3 = st.columns(3)
+col1.metric("🏆 Level", st.session_state.level)
+col2.metric("✨ XP", st.session_state.xp)
+col3.metric("🔥 Streak", st.session_state.streak)
 
-# ===== CSS (inline) =====
-app.index_string = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>FunLearn Pro</title>
-    <style>
-        body {
-            font-family: Arial;
-            background: linear-gradient(to right, #ffecd2, #fcb69f);
-        }
-        .card {
-            background: white;
-            padding: 15px;
-            border-radius: 15px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            transition: transform 0.2s;
-        }
-        .card:hover {
-            transform: scale(1.05);
-        }
-    </style>
-</head>
-<body>
-    {%app_entry%}
-    <footer>
-        {%config%}
-        {%scripts%}
-    </footer>
-</body>
-</html>
-"""
+st.progress((st.session_state.xp % 100) / 100)
 
-# ===== RUN =====
-if __name__ == "__main__":
-    app.run(debug=True)
+# ===== SETTINGS =====
+mode = st.selectbox("Choose Mode", ["Math", "Vocabulary", "Mixed"])
+difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
+
+# ===== INIT QUESTION =====
+if st.session_state.question == "" and st.session_state.word is None:
+    new_question(mode, difficulty)
+
+# ===== DISPLAY =====
+if st.session_state.question:
+    st.subheader("🧮 Math Challenge")
+    st.write(f"{st.session_state.question} = ?")
+    user_input = st.number_input("Your answer", step=1)
+
+elif st.session_state.word:
+    st.subheader("🔤 Vocabulary Challenge")
+    st.write(f"Hint: {st.session_state.word['hint']}")
+    user_input = st.text_input("Your answer")
+
+# ===== SUBMIT =====
+if st.button("Submit"):
+    correct = False
+
+    if st.session_state.question:
+        if str(user_input) == str(st.session_state.answer):
+            correct = True
+    else:
+        if user_input and user_input.lower() == st.session_state.word["answer"]:
+            correct = True
+
+    if correct:
+        st.success("✅ Correct!")
+        st.session_state.score += 1
+        st.session_state.streak += 1
+        st.session_state.xp += 10
+    else:
+        st.error("❌ Wrong!")
+        st.session_state.streak = 0
+
+    # LEVEL UP
+    if st.session_state.xp >= st.session_state.level * 100:
+        st.session_state.level += 1
+        st.balloons()
+
+    new_question(mode, difficulty)
+
+# ===== SCORE =====
+st.write(f"🎯 Score: {st.session_state.score}")
